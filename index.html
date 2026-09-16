@@ -254,7 +254,7 @@
     display: inline-block;
   }
 
-  svg#graphSvg{
+  svg#graphSvg, svg#reachGraphSvg{
     width: 100%;
     height: auto;
     aspect-ratio: 640 / 440;
@@ -268,17 +268,6 @@
   .node-ring-source{ fill: none; stroke: var(--accent-strong); stroke-width: 2.5; }
   .node-label{ font-family: "IBM Plex Mono", monospace; font-size: 8.5px; fill: var(--surface); pointer-events: none; text-anchor: middle; }
 
-  svg.aura-svg{
-    width: 100%;
-    height: auto;
-    aspect-ratio: 640 / 440;
-    display: block;
-    background: var(--surface-2);
-    border-radius: 10px;
-  }
-  .aura-edge{ stroke: var(--baseline); stroke-width: 0.9; opacity: 0.55; }
-  .aura-node{ stroke: var(--surface); stroke-width: 1; cursor: pointer; }
-  .aura-node-ring{ fill: none; stroke: var(--accent-strong); stroke-width: 2.5; }
   .aura-dot{
     width: 8px; height: 8px; border-radius: 50%;
     display: inline-block; margin: 0 4px 0 8px;
@@ -472,36 +461,33 @@
           <span class="legend-swatch"></span><span>미도달</span><span class="legend-bar" id="reachLegendBar"></span><span>0 hop</span>
         </div>
       </div>
+      <div class="legend" style="font-size:10.5px; margin-bottom:8px;"><span class="aura-dot aura-dot-front"></span>방금 도달(프런티어)<span class="aura-dot aura-dot-settled"></span>정착됨</div>
 
       <svg id="reachGraphSvg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
-        <g id="reachEdgesLayer"></g>
-        <g id="reachNodesLayer"></g>
-      </svg>
-
-      <p class="hover-info" id="reachHoverInfo">노드를 클릭하면 시작 노드가 바뀌고, 그로부터 몇 hop 만에 도달하는지 색으로 표시됩니다.</p>
-    </section>
-  </main>
-
-  <section class="results-grid">
-    <div class="chart-card">
-      <div class="graph-card-head" style="margin-bottom:2px;">
-        <h3 style="margin:0;">노드 오라 · k-hop 확산</h3>
-        <span class="legend" style="font-size:10.5px;"><span class="aura-dot aura-dot-front"></span>방금 도달<span class="aura-dot aura-dot-settled"></span>정착됨</span>
-      </div>
-      <svg class="aura-svg" id="auraSvg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="auraBlur" x="-80%" y="-80%" width="260%" height="260%">
             <feGaussianBlur stdDeviation="8" />
           </filter>
         </defs>
-        <g id="auraEdgesLayer"></g>
-        <g id="auraGlowLayer"></g>
-        <g id="auraNodesLayer"></g>
+        <g id="reachEdgesLayer"></g>
+        <g id="reachGlowLayer"></g>
+        <g id="reachNodesLayer"></g>
       </svg>
-      <p class="chart-readout" id="auraReadout"></p>
-      <p class="chart-hint">노드를 클릭하면 이 오라의 중심(시작 노드)이 바뀝니다.</p>
-    </div>
 
+      <p class="hover-info" id="reachHoverInfo">노드를 클릭하면 시작 노드가 바뀌고, 그로부터 몇 hop 만에 도달하는지 색과 오라로 표시됩니다.</p>
+      <p class="chart-readout" id="auraReadout"></p>
+
+      <div class="value-strip-wrap">
+        <div class="value-strip-label">노드별 도달 시점 (클러스터 순서 · 항상 표시) — 색이 짙을수록 먼저 도달했고, 회색 칸은 아직 도달하지 못한 노드입니다</div>
+        <div class="value-strip" id="reachStrip"></div>
+        <div class="cluster-ticks">
+          <span>cluster A</span><span>cluster B</span><span>cluster C</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="results-grid">
     <div class="chart-card">
       <div class="graph-card-head" style="margin-bottom:2px;">
         <h3 style="margin:0;">정보 다양성 유지율</h3>
@@ -850,6 +836,7 @@
   const reachGraphCard = document.getElementById('reachGraphCard');
   const reachLegendBar = document.getElementById('reachLegendBar');
   const reachHoverInfo = document.getElementById('reachHoverInfo');
+  const reachStrip = document.getElementById('reachStrip');
   const kSlider = document.getElementById('kSlider');
   const kValue = document.getElementById('kValue');
   const playBtn = document.getElementById('playBtn');
@@ -863,9 +850,7 @@
   const decompChartSvg = document.getElementById('decompChart');
   const decompReadout = document.getElementById('decompReadout');
   const logScaleToggle = document.getElementById('logScaleToggle');
-  const auraEdgesLayer = document.getElementById('auraEdgesLayer');
-  const auraGlowLayer = document.getElementById('auraGlowLayer');
-  const auraNodesLayer = document.getElementById('auraNodesLayer');
+  const reachGlowLayer = document.getElementById('reachGlowLayer');
   const auraReadout = document.getElementById('auraReadout');
 
   kSlider.max = String(K_MAX);
@@ -956,46 +941,13 @@
     reachNodesLayer.appendChild(reachRingEl);
   }
 
-  // ---------------- aura panel (single-node k-hop diffusion) ----------------
-  let auraNodeEls = [];
-  let auraRingEl = null;
-
-  function buildAuraDom(){
-    auraEdgesLayer.innerHTML = '';
-    auraNodesLayer.innerHTML = '';
+  // ---------------- reach-graph aura glow (k-hop diffusion halo) ----------------
+  // Layered on top of the reachability graph's own nodes/edges — the glow
+  // marks "just arrived" (frontier) vs "settled" nodes, while the node fill
+  // color (set by renderReachGraphColors) still encodes hop distance.
+  function renderReachGlow(){
     const svgNS = 'http://www.w3.org/2000/svg';
-
-    world.edges.forEach(e => {
-      const a = world.nodes[e.source], b = world.nodes[e.target];
-      const line = document.createElementNS(svgNS, 'line');
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-      line.setAttribute('class', 'aura-edge');
-      auraEdgesLayer.appendChild(line);
-    });
-
-    auraNodeEls = [];
-    for (let i=0;i<N;i++){
-      const nd = world.nodes[i];
-      const circle = document.createElementNS(svgNS, 'circle');
-      circle.setAttribute('cx', nd.x);
-      circle.setAttribute('cy', nd.y);
-      circle.setAttribute('r', 6);
-      circle.setAttribute('class', 'aura-node');
-      circle.addEventListener('click', () => { selectSource(i); });
-      circle.addEventListener('mouseenter', () => showHoverReach(i));
-      auraNodesLayer.appendChild(circle);
-      auraNodeEls.push(circle);
-    }
-    auraRingEl = document.createElementNS(svgNS, 'circle');
-    auraRingEl.setAttribute('r', 10);
-    auraRingEl.setAttribute('class', 'aura-node-ring');
-    auraNodesLayer.appendChild(auraRingEl);
-  }
-
-  function renderAura(){
-    const svgNS = 'http://www.w3.org/2000/svg';
-    auraGlowLayer.innerHTML = '';
+    reachGlowLayer.innerHTML = '';
 
     // a soft, steady core aura around the source itself
     const src = world.nodes[sourceNode];
@@ -1005,7 +957,7 @@
     core.setAttribute('fill', 'var(--accent-strong)');
     core.setAttribute('opacity', 0.35);
     core.setAttribute('filter', 'url(#auraBlur)');
-    auraGlowLayer.appendChild(core);
+    reachGlowLayer.appendChild(core);
 
     let frontierCount = 0, settledCount = 0;
     for (let i=0;i<N;i++){
@@ -1020,19 +972,8 @@
       glow.setAttribute('fill', 'var(--accent)');
       glow.setAttribute('opacity', isFrontier ? 0.55 : 0.16);
       glow.setAttribute('filter', 'url(#auraBlur)');
-      auraGlowLayer.appendChild(glow);
-
-      auraNodeEls[i].setAttribute('fill', i === sourceNode ? 'var(--accent-strong)' : 'var(--accent)');
-      auraNodeEls[i].setAttribute('opacity', 1);
+      reachGlowLayer.appendChild(glow);
     }
-    for (let i=0;i<N;i++){
-      const d = dist[i];
-      if (isFinite(d) && d <= k) continue;
-      auraNodeEls[i].setAttribute('fill', 'var(--unreached)');
-      auraNodeEls[i].setAttribute('opacity', 0.8);
-    }
-    auraRingEl.setAttribute('cx', src.x);
-    auraRingEl.setAttribute('cy', src.y);
 
     const unreachedCount = N - frontierCount - settledCount;
     auraReadout.innerHTML = 'k=<span class="mono">' + k + '</span> — 방금 도달(프런티어) <span class="mono">' + frontierCount +
@@ -1099,6 +1040,32 @@
       cell.style.background = seqColor(t);
       cell.title = 'Node #' + i + ' = ' + v.toFixed(2);
       valueStrip.appendChild(cell);
+    }
+  }
+
+  function renderReachStrip(){
+    reachStrip.innerHTML = '';
+    let lastCluster = -1;
+    for (let i=0;i<N;i++){
+      const c = world.clusterOf[i];
+      if (lastCluster !== -1 && c !== lastCluster){
+        const gap = document.createElement('div');
+        gap.className = 'cell gap';
+        reachStrip.appendChild(gap);
+      }
+      lastCluster = c;
+      const d = dist[i];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (!isFinite(d) || d > k){
+        cell.style.background = 'var(--unreached)';
+        cell.title = 'Node #' + i + ' — 아직 도달하지 못함';
+      } else {
+        const t = diameter > 0 ? 1 - (d / diameter) : 1;
+        cell.style.background = seqColor(clamp(t, 0.12, 1));
+        cell.title = 'Node #' + i + ' — ' + d + ' hop에 도달' + (i === sourceNode ? ' (시작 노드)' : '');
+      }
+      reachStrip.appendChild(cell);
     }
   }
 
@@ -1341,7 +1308,8 @@
     renderGraphColors();
     renderReachGraphColors();
     renderValueStrip();
-    renderAura();
+    renderReachStrip();
+    renderReachGlow();
     updateChartMarker(varChart, k);
     updateChartMarker(reachChart, k);
     updateComparisonMarker(decompChart, k);
@@ -1383,7 +1351,6 @@
     recomputeReach();
     buildGraphDom();
     buildReachGraphDom();
-    buildAuraDom();
     rebuildCharts();
     renderAll();
   });
@@ -1409,7 +1376,6 @@
   // ---------------- boot ----------------
   buildGraphDom();
   buildReachGraphDom();
-  buildAuraDom();
   rebuildCharts();
   renderAll();
 })();

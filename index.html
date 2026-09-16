@@ -20,6 +20,8 @@
     --accent:#2a78d6;
     --accent-strong:#184f95;
     --accent-tint:#e7f0fb;
+    --series-within:#2a78d6;
+    --series-between:#eb6834;
     --border: rgba(11,11,11,0.10);
     --ramp-100:#cde2fb; --ramp-150:#b7d3f6; --ramp-200:#9ec5f4; --ramp-250:#86b6ef;
     --ramp-300:#6da7ec; --ramp-350:#5598e7; --ramp-400:#3987e5; --ramp-450:#2a78d6;
@@ -42,6 +44,8 @@
       --accent:#3987e5;
       --accent-strong:#86b6ef;
       --accent-tint:#17263a;
+      --series-within:#3987e5;
+      --series-between:#d95926;
       --border: rgba(255,255,255,0.12);
       --unreached:#2c2c2a;
     }
@@ -59,6 +63,8 @@
     --accent:#3987e5;
     --accent-strong:#86b6ef;
     --accent-tint:#17263a;
+    --series-within:#3987e5;
+    --series-between:#d95926;
     --border: rgba(255,255,255,0.12);
     --unreached:#2c2c2a;
   }
@@ -366,6 +372,18 @@
   .chart-path{ fill: none; stroke: var(--accent); stroke-width: 2; }
   .chart-marker-line{ stroke: var(--accent-strong); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.6; }
   .chart-marker{ fill: var(--accent-strong); stroke: var(--surface); stroke-width: 1.6; }
+  .chart-path-2{ fill: none; stroke: var(--series-between); stroke-width: 2; }
+  .chart-marker-2{ fill: var(--series-between); stroke: var(--surface); stroke-width: 1.6; }
+  .log-toggle{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .log-toggle input{ accent-color: var(--accent); cursor: pointer; }
 
   details.formula-details{
     background: var(--surface);
@@ -493,10 +511,24 @@
       </div>
 
       <div class="chart-card">
-        <h3>정보 다양성 유지율</h3>
+        <div class="graph-card-head" style="margin-bottom:2px;">
+          <h3 style="margin:0;">정보 다양성 유지율</h3>
+          <label class="log-toggle"><input type="checkbox" id="logScaleToggle"> 로그 스케일</label>
+        </div>
         <svg class="chart" id="varChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
         <p class="chart-readout" id="varReadout"></p>
-        <p class="chart-hint">그래프를 클릭하면 해당 k로 바로 이동합니다.</p>
+        <p class="chart-hint">그래프를 클릭하면 해당 k로 바로 이동합니다. 선형 스케일에서는 1% 이하가 거의 0처럼 보이는데, 로그 스케일로 보면 그 이후로도 계속 지수적으로 줄어드는 게 보여요.</p>
+      </div>
+
+      <div class="chart-card">
+        <h3 style="margin:0 0 2px;">클러스터 내부 vs 클러스터 간 분산</h3>
+        <div class="legend" style="margin-bottom:4px;">
+          <span class="legend-swatch" style="background:var(--series-within);"></span><span>클러스터 내부</span>
+          <span class="legend-swatch" style="background:var(--series-between); margin-left:8px;"></span><span>클러스터 간</span>
+        </div>
+        <svg class="chart" id="decompChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
+        <p class="chart-readout" id="decompReadout"></p>
+        <p class="chart-hint">클러스터 <b>내부</b> 차이는 몇 hop 만에 빠르게 사라지지만, 클러스터 <b>간</b> 차이는 다리 엣지가 적어서 훨씬 천천히 사라집니다 — 결국 k→∞에서는 둘 다 0으로 수렴합니다.</p>
       </div>
 
       <div class="chart-card">
@@ -515,7 +547,8 @@
           <p>"정보 다양성"은 8차원 특징 벡터 전체의 <b>분산</b>입니다 (Fisher information이 아니라 단순 통계 분산):</p>
           <span class="eq">Var(k) = (1/N) Σ_v ‖h_v^(k) − mean(H^(k))‖²</span>
           <p>노드 벡터들이 평균에서 얼마나 퍼져 있는지를 재는 값으로, GNN 논문에서 over-smoothing을 정량화할 때 쓰는 Dirichlet energy(그래프 라플라시안 이차형식)와 사실상 같은 양입니다. 그래프에 self-loop가 없다면 Var(k)는 정확히 Dirichlet energy와 일치합니다. 화면에는 k=0 값 대비 백분율 <span class="mono">Var(k)/Var(0)×100%</span>로 표시해서, 100%(완전히 구별됨)에서 시작해 0%(전부 동일)로 줄어드는 정도를 직관적으로 보여줍니다.</p>
-          <p>이 평균화는 확률적으로 수렴하는 연산이라, k가 그래프의 지름을 훨씬 넘어서면 모든 노드의 값이 그래프 전체의 (연결 구조로 가중된) 평균 하나로 수렴합니다 — Var(k)가 0에 가까워지는 이유입니다.</p>
+          <p>이 갱신 규칙의 계수 행렬 P = D⁻¹(A+I)는 self-loop 덕분에 비주기적(aperiodic)인, 연결된 그래프 위의 확률 행렬(각 행의 합이 1)입니다. Perron-Frobenius 정리에 따라 P^k는 k→∞일 때 모든 행이 같은 극한 벡터(그래프 연결 구조로 가중된 정상분포)로 수렴하는 행렬로 수렴합니다 — 즉 <b>그래프가 하나로 연결되어 있는 한, 몇 개의 다리로만 이어져 있어도 결국 모든 노드의 값은 정확히 하나로 수렴합니다.</b> 클러스터 간 차이도 예외가 아니에요.</p>
+          <p>다만 수렴 <b>속도</b>는 모드마다 다릅니다. P의 고유값 중 1이 아닌 것들은 모두 절댓값이 1보다 작은데, 클러스터 내부처럼 조밀하게 연결된 구조에 대응하는 고유값은 1에서 멀어 빠르게 감쇠하고, "어느 클러스터에 속하는가" 같은 저주파 구조는 클러스터 사이를 잇는 다리가 적을수록(그래프 컷이 작을수록) 그 고유값이 1에 매우 가까워져 훨씬 느리게 감쇠합니다. 그래서 클러스터 내부 분산은 몇 hop 만에 사라지는데, 클러스터 간 분산은 수십~수백 hop이 지나야 눈에 띄게 사라지는 것처럼 보이는 겁니다 — "클러스터 내부 vs 클러스터 간 분산" 차트가 이 두 속도 차이를 직접 보여줍니다. 화면의 k 최대값(<span class="mono">180</span>)은 이 데모에서 등장하는 대부분의 랜덤 그래프가 두 곡선 모두 0.01% 이하로 떨어지는 지점까지 잡은 값입니다.</p>
         </div>
       </details>
     </aside>
@@ -589,10 +622,11 @@
   const CLUSTER_SIZES = [12, 12, 12];
   const N = CLUSTER_SIZES.reduce((a,b)=>a+b,0);
   const DIM = 8;
-  const K_MAX = 30;
+  const K_MAX = 180; // large enough that even the slowest-mixing random seeds fully converge (<0.01%)
   const RING_SPAN = 2;
   const CHORD_FRAC = 0.3;
   const BRIDGE_COUNT = 4;
+  const PLAY_INTERVAL_MS = Math.max(35, Math.round(20000 / K_MAX));
 
   function buildWorld(seed){
     const rng = mulberry32(seed);
@@ -711,6 +745,22 @@
       H.forEach(v => { let dist=0; v.forEach((x,d)=>{ const diff=x-mean[d]; dist += diff*diff; }); s += dist/N; });
       return s;
     }
+    // ANOVA-style split of the total variance into "within-cluster" (how
+    // different nodes are from their own cluster's mean) and "between-cluster"
+    // (how different the three cluster means are from the global mean).
+    // within + between === variance(H) exactly.
+    function decompose(H){
+      const globalMean = new Array(DIM).fill(0);
+      H.forEach(v => v.forEach((x,d) => globalMean[d] += x/N));
+      const clusterMeans = CLUSTER_SIZES.map(() => new Array(DIM).fill(0));
+      const counts = new Array(CLUSTER_SIZES.length).fill(0);
+      H.forEach((v,i) => { const c = clusterOf[i]; counts[c]++; v.forEach((x,d) => clusterMeans[c][d] += x); });
+      clusterMeans.forEach((cm,c) => { for (let d=0; d<DIM; d++) cm[d] /= counts[c]; });
+      let within = 0, between = 0;
+      H.forEach((v,i) => { const c = clusterOf[i]; let s=0; v.forEach((x,d)=>{ const diff=x-clusterMeans[c][d]; s+=diff*diff; }); within += s/N; });
+      clusterMeans.forEach((cm,c) => { let s=0; for (let d=0; d<DIM; d++){ const diff=cm[d]-globalMean[d]; s+=diff*diff; } between += s*(counts[c]/N); });
+      return { within, between };
+    }
 
     let cur = H0.map(v => v.slice());
     const featureStates = [cur.map(v => v.slice())];
@@ -728,6 +778,9 @@
     }
     const var0 = variance(featureStates[0]);
     const varianceRel = featureStates.map(H => (var0 > 0 ? variance(H)/var0*100 : 0));
+    const decomp0 = decompose(featureStates[0]);
+    const withinRel = featureStates.map(H => (decomp0.within > 0 ? decompose(H).within/decomp0.within*100 : 0));
+    const betweenRel = featureStates.map(H => (decomp0.between > 0 ? decompose(H).between/decomp0.between*100 : 0));
     const scalarStates = featureStates.map(H => H.map(v => v.reduce((s,x,d)=>s+x*projection[d],0)));
     // Color domain uses the 10th-90th percentile of the initial (k=0) values
     // rather than the raw min/max. Stretching the ramp across this tighter,
@@ -761,7 +814,7 @@
 
     return {
       seed, edges, adj, deg, nodes, clusterOf, clusterStart,
-      featureStates, scalarStates, varianceRel, domainMin, domainMax,
+      featureStates, scalarStates, varianceRel, withinRel, betweenRel, domainMin, domainMax,
       bfsFrom, W, H
     };
   }
@@ -813,6 +866,9 @@
   const reachHint = document.getElementById('reachHint');
   const varChartSvg = document.getElementById('varChart');
   const reachChartSvg = document.getElementById('reachChart');
+  const decompChartSvg = document.getElementById('decompChart');
+  const decompReadout = document.getElementById('decompReadout');
+  const logScaleToggle = document.getElementById('logScaleToggle');
   const auraEdgesLayer = document.getElementById('auraEdgesLayer');
   const auraGlowLayer = document.getElementById('auraGlowLayer');
   const auraNodesLayer = document.getElementById('auraNodesLayer');
@@ -1025,16 +1081,36 @@
   }
 
   // ---------------- charts ----------------
-  function buildStaticChart(svg, data, refK, colorLabel){
+  const LOG_FLOOR = 0.01; // smallest % the log-scale axis resolves before clipping
+  const LOG_MIN = Math.log10(LOG_FLOOR), LOG_MAX = Math.log10(100);
+
+  function makeYAt(scale, padT, plotH){
+    if (scale === 'log'){
+      return function(v){
+        const t = (Math.log10(clamp(v, LOG_FLOOR, 100)) - LOG_MIN) / (LOG_MAX - LOG_MIN);
+        return padT + (1 - t) * plotH;
+      };
+    }
+    return function(v){ return padT + (1 - clamp(v,0,100)/100) * plotH; };
+  }
+  function gridValuesFor(scale){
+    return scale === 'log' ? [100, 10, 1, 0.1, 0.01] : [0, 50, 100];
+  }
+  function formatGridLabel(v){
+    if (v >= 1 || v === 0) return v + '%';
+    return v.toFixed(v >= 0.1 ? 1 : 2) + '%';
+  }
+
+  function buildStaticChart(svg, data, refK, scale){
     svg.innerHTML = '';
     const svgNS = 'http://www.w3.org/2000/svg';
-    const W = 300, H = 170, padL = 30, padR = 12, padT = 12, padB = 26;
+    const W = 300, H = 170, padL = 32, padR = 12, padT = 12, padB = 26;
     const plotW = W - padL - padR, plotH = H - padT - padB;
+    const baseY = H - padB;
     function xAt(kk){ return padL + (kk / K_MAX) * plotW; }
-    function yAt(v){ return padT + (1 - v/100) * plotH; }
+    const yAt = makeYAt(scale, padT, plotH);
 
-    // gridlines 0/50/100
-    [0,50,100].forEach(v => {
+    gridValuesFor(scale).forEach(v => {
       const line = document.createElementNS(svgNS,'line');
       line.setAttribute('x1', padL); line.setAttribute('x2', W-padR);
       line.setAttribute('y1', yAt(v)); line.setAttribute('y2', yAt(v));
@@ -1044,7 +1120,7 @@
       label.setAttribute('x', padL-6); label.setAttribute('y', yAt(v)+3);
       label.setAttribute('text-anchor','end');
       label.setAttribute('class','chart-axis-label');
-      label.textContent = v + '%';
+      label.textContent = formatGridLabel(v);
       svg.appendChild(label);
     });
 
@@ -1064,13 +1140,13 @@
     }
 
     // area + line
-    let areaD = 'M ' + xAt(0) + ' ' + yAt(0);
+    let areaD = 'M ' + xAt(0) + ' ' + baseY;
     let lineD = 'M ' + xAt(0) + ' ' + yAt(data[0]);
     for (let kk=0; kk<=K_MAX; kk++){
       areaD += ' L ' + xAt(kk) + ' ' + yAt(data[kk]);
       if (kk>0) lineD += ' L ' + xAt(kk) + ' ' + yAt(data[kk]);
     }
-    areaD += ' L ' + xAt(K_MAX) + ' ' + yAt(0) + ' Z';
+    areaD += ' L ' + xAt(K_MAX) + ' ' + baseY + ' Z';
     const area = document.createElementNS(svgNS,'path');
     area.setAttribute('d', areaD); area.setAttribute('class','chart-area');
     svg.appendChild(area);
@@ -1107,7 +1183,71 @@
     return { xAt, yAt, mline, marker, data };
   }
 
-  let varChart = null, reachChart = null;
+  // two-series comparison chart (no area fill; each series gets its own
+  // stroke color + marker, a shared dashed line tracks the current k)
+  function buildComparisonChart(svg, dataA, dataB, scale){
+    svg.innerHTML = '';
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const W = 300, H = 170, padL = 32, padR = 12, padT = 12, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    function xAt(kk){ return padL + (kk / K_MAX) * plotW; }
+    const yAt = makeYAt(scale, padT, plotH);
+
+    gridValuesFor(scale).forEach(v => {
+      const line = document.createElementNS(svgNS,'line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W-padR);
+      line.setAttribute('y1', yAt(v)); line.setAttribute('y2', yAt(v));
+      line.setAttribute('class','chart-grid-line');
+      svg.appendChild(line);
+      const label = document.createElementNS(svgNS,'text');
+      label.setAttribute('x', padL-6); label.setAttribute('y', yAt(v)+3);
+      label.setAttribute('text-anchor','end');
+      label.setAttribute('class','chart-axis-label');
+      label.textContent = formatGridLabel(v);
+      svg.appendChild(label);
+    });
+
+    function drawLine(data, cls){
+      let d = 'M ' + xAt(0) + ' ' + yAt(data[0]);
+      for (let kk=1; kk<=K_MAX; kk++) d += ' L ' + xAt(kk) + ' ' + yAt(data[kk]);
+      const path = document.createElementNS(svgNS,'path');
+      path.setAttribute('d', d); path.setAttribute('class', cls);
+      svg.appendChild(path);
+    }
+    drawLine(dataB, 'chart-path-2'); // between-cluster (draw first, usually the slower/higher one)
+    drawLine(dataA, 'chart-path');   // within-cluster
+
+    const xlabel = document.createElementNS(svgNS,'text');
+    xlabel.setAttribute('x', W/2); xlabel.setAttribute('y', H-6);
+    xlabel.setAttribute('text-anchor','middle');
+    xlabel.setAttribute('class','chart-axis-label');
+    xlabel.textContent = 'hop 수 k (0 → ' + K_MAX + ')';
+    svg.appendChild(xlabel);
+
+    const mline = document.createElementNS(svgNS,'line');
+    mline.setAttribute('class','chart-marker-line');
+    mline.setAttribute('y1', padT); mline.setAttribute('y2', H-padB);
+    svg.appendChild(mline);
+    const markerA = document.createElementNS(svgNS,'circle');
+    markerA.setAttribute('r', 3.5); markerA.setAttribute('class','chart-marker');
+    svg.appendChild(markerA);
+    const markerB = document.createElementNS(svgNS,'circle');
+    markerB.setAttribute('r', 3.5); markerB.setAttribute('class','chart-marker-2');
+    svg.appendChild(markerB);
+
+    svg.addEventListener('click', (ev) => {
+      const rect = svg.getBoundingClientRect();
+      const relX = (ev.clientX - rect.left) / rect.width * W;
+      const kk = clamp(Math.round((relX - padL) / plotW * K_MAX), 0, K_MAX);
+      k = kk; kSlider.value = String(k);
+      renderAll();
+    });
+
+    return { xAt, yAt, mline, markerA, markerB, dataA, dataB };
+  }
+
+  let varChart = null, reachChart = null, decompChart = null;
+  let logScale = false;
 
   function updateChartMarker(chart, kk){
     if (!chart) return;
@@ -1115,15 +1255,34 @@
     chart.mline.setAttribute('x1', x); chart.mline.setAttribute('x2', x);
     chart.marker.setAttribute('cx', x); chart.marker.setAttribute('cy', y);
   }
+  function updateComparisonMarker(chart, kk){
+    if (!chart) return;
+    const x = chart.xAt(kk);
+    chart.mline.setAttribute('x1', x); chart.mline.setAttribute('x2', x);
+    chart.markerA.setAttribute('cx', x); chart.markerA.setAttribute('cy', chart.yAt(chart.dataA[kk]));
+    chart.markerB.setAttribute('cx', x); chart.markerB.setAttribute('cy', chart.yAt(chart.dataB[kk]));
+  }
 
   function rebuildCharts(){
-    varChart = buildStaticChart(varChartSvg, world.varianceRel, null, 'diversity');
-    reachChart = buildStaticChart(reachChartSvg, reachFrac, diameter, 'reach');
+    const scale = logScale ? 'log' : 'linear';
+    varChart = buildStaticChart(varChartSvg, world.varianceRel, null, scale);
+    reachChart = buildStaticChart(reachChartSvg, reachFrac, diameter, 'linear');
+    decompChart = buildComparisonChart(decompChartSvg, world.withinRel, world.betweenRel, scale);
   }
 
   // ---------------- narrative + readouts ----------------
+  function formatPct(v){
+    if (v >= 10) return v.toFixed(1);
+    if (v >= 1) return v.toFixed(1);
+    if (v >= 0.1) return v.toFixed(2);
+    if (v >= 0.01) return v.toFixed(3);
+    return v.toFixed(4);
+  }
+
   function renderNarrative(){
     const varPct = world.varianceRel[k];
+    const withinPct = world.withinRel[k];
+    const betweenPct = world.betweenRel[k];
     const reachedCount = dist.filter(d => d <= k).length;
     const reachPct = reachFrac[k];
 
@@ -1132,8 +1291,9 @@
       if (k === 0) note = '아직 이웃 정보를 섞지 않은 초기 상태 — 3개 클러스터의 값이 뚜렷이 구분됩니다.';
       else if (varPct > 55) note = '클러스터별 값 차이가 아직 꽤 남아 있습니다.';
       else if (varPct > 20) note = '클러스터 간 정보가 섞이면서 값의 차이가 눈에 띄게 줄고 있습니다.';
-      else note = '대부분의 노드가 거의 같은 값으로 수렴했습니다 — over-smoothing이 심하게 진행된 상태입니다.';
-      callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 정보 다양성 <span class="k-tag mono">' + varPct.toFixed(1) + '%</span> 남음. ' + note;
+      else if (varPct > 0.05) note = '대부분의 노드가 거의 같은 값으로 수렴했습니다 — over-smoothing이 심하게 진행된 상태입니다.';
+      else note = '사실상 완전히 하나의 값으로 수렴했습니다 (k→∞ 극한에 가까운 상태).';
+      callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 정보 다양성 <span class="k-tag mono">' + formatPct(varPct) + '%</span> 남음. ' + note;
     } else {
       let note;
       if (k >= diameter) note = '이미 k=' + diameter + '에서 그래프 전체에 정보가 도달했습니다. 이후로는 새 정보 없이 계속 평균만 반복됩니다.';
@@ -1141,9 +1301,11 @@
       callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 선택 노드 기준 <span class="k-tag mono">' + reachedCount + '/' + N + '</span> (' + reachPct.toFixed(0) + '%) 노드에 도달. ' + note;
     }
 
-    varReadout.innerHTML = 'k=<span class="mono">' + k + '</span> → 다양성 <span class="mono">' + varPct.toFixed(1) + '%</span> 남음' +
-      (k===0 ? ' (기준점, 100%)' : '') + '. k=' + K_MAX + '에서는 <span class="mono">' + world.varianceRel[K_MAX].toFixed(1) + '%</span>까지 떨어집니다.';
+    varReadout.innerHTML = 'k=<span class="mono">' + k + '</span> → 다양성 <span class="mono">' + formatPct(varPct) + '%</span> 남음' +
+      (k===0 ? ' (기준점, 100%)' : '') + '. k=' + K_MAX + '에서는 <span class="mono">' + formatPct(world.varianceRel[K_MAX]) + '%</span>까지 떨어집니다.';
     reachReadout.innerHTML = 'k=<span class="mono">' + k + '</span> → <span class="mono">' + reachedCount + '/' + N + '</span> 노드 도달 (' + reachPct.toFixed(0) + '%). 이 시작 노드의 지름은 <span class="mono">' + diameter + ' hop</span>입니다.';
+    decompReadout.innerHTML = 'k=<span class="mono">' + k + '</span> → 클러스터 내부 <span class="mono">' + formatPct(withinPct) + '%</span>, 클러스터 간 <span class="mono">' + formatPct(betweenPct) + '%</span> 남음' +
+      (betweenPct > withinPct * 1.5 ? ' — 클러스터 간 차이가 훨씬 천천히 사라지고 있습니다.' : (k===0 ? '' : ' — 이제 거의 같은 속도로 사라지고 있습니다.'));
   }
 
   // ---------------- top-level render ----------------
@@ -1158,6 +1320,7 @@
     renderAura();
     updateChartMarker(varChart, k);
     updateChartMarker(reachChart, k);
+    updateComparisonMarker(decompChart, k);
     renderNarrative();
   }
 
@@ -1187,7 +1350,7 @@
     playBtn.textContent = '❚❚';
     playBtn.setAttribute('aria-label', '일시정지');
     if (k >= K_MAX) k = 0;
-    playTimer = setInterval(stepPlay, 550);
+    playTimer = setInterval(stepPlay, PLAY_INTERVAL_MS);
   }
   function stopPlay(){
     playing = false;
@@ -1209,9 +1372,19 @@
     renderAll();
   });
 
+  logScaleToggle.addEventListener('change', () => {
+    logScale = logScaleToggle.checked;
+    rebuildChartsKeepData();
+  });
+
   // theme change -> recolor
   function onThemeChange(){ renderAll(); rebuildChartsKeepData(); }
-  function rebuildChartsKeepData(){ rebuildCharts(); updateChartMarker(varChart, k); updateChartMarker(reachChart, k); }
+  function rebuildChartsKeepData(){
+    rebuildCharts();
+    updateChartMarker(varChart, k);
+    updateChartMarker(reachChart, k);
+    updateComparisonMarker(decompChart, k);
+  }
   if (window.matchMedia){
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onThemeChange);
   }

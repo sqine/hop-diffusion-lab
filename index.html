@@ -126,31 +126,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
   }
-  .mode-toggle{
-    display: inline-flex;
-    background: var(--surface-2);
-    border-radius: 999px;
-    padding: 3px;
-    gap: 2px;
-  }
-  .mode-toggle button{
-    appearance: none;
-    border: none;
-    background: transparent;
-    color: var(--ink-soft);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px 14px;
-    border-radius: 999px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .mode-toggle button.active{
-    background: var(--accent);
-    color: #fff;
-  }
-  .mode-toggle button:focus-visible, button:focus-visible, input:focus-visible{
+  button:focus-visible, input:focus-visible{
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
@@ -218,14 +194,23 @@
   }
 
   /* ---------- main layout ---------- */
-  .layout{
+  .dual-graph{
     display: grid;
-    grid-template-columns: 1.55fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 20px;
     align-items: start;
   }
   @media (max-width: 900px){
-    .layout{ grid-template-columns: 1fr; }
+    .dual-graph{ grid-template-columns: 1fr; }
+  }
+  .results-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .results-grid > details.formula-details{
+    grid-column: 1 / -1;
   }
 
   .graph-card, .chart-card{
@@ -340,12 +325,7 @@
     color: var(--muted);
   }
 
-  /* ---------- side panel ---------- */
-  .side-panel{
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+  /* ---------- result cards (below dual-graph) ---------- */
   .chart-card h3{
     font-family: "Fraunces", serif;
     font-weight: 600;
@@ -433,10 +413,9 @@
     .node-circle{ transition: none; }
   }
 </style>
+
 </head>
 <body>
-
-
 <div class="page">
 
   <header class="hero">
@@ -451,10 +430,6 @@
   </header>
 
   <section class="controls-bar">
-    <div class="mode-toggle" role="tablist" aria-label="그래프 색상 모드">
-      <button type="button" data-mode="oversmooth" class="active" role="tab" aria-selected="true">특징값 · Over-smoothing</button>
-      <button type="button" data-mode="reach" role="tab" aria-selected="false">도달 범위 · Reachability</button>
-    </div>
     <div class="k-control">
       <button type="button" id="playBtn" aria-label="k 자동 재생">▶</button>
       <input type="range" id="kSlider" min="0" max="30" value="0" step="1" aria-label="hop 수 k">
@@ -465,12 +440,12 @@
 
   <div class="callout" id="callout" role="status" aria-live="polite"></div>
 
-  <main class="layout">
+  <main class="dual-graph">
     <section class="graph-card" id="graphCard">
       <div class="graph-card-head">
-        <h2 id="graphTitle">특징값 색상 (over-smoothing)</h2>
+        <h2>특징값 색상 · Over-smoothing</h2>
         <div class="legend" id="legend">
-          <span>낮음</span><span class="legend-bar" id="legendBar"></span><span>높음</span>
+          <span>값 낮음</span><span class="legend-bar" id="legendBar"></span><span>값 높음</span>
         </div>
       </div>
 
@@ -490,69 +465,85 @@
       </div>
     </section>
 
-    <aside class="side-panel">
-      <div class="chart-card">
-        <div class="graph-card-head" style="margin-bottom:2px;">
-          <h3 style="margin:0;">노드 오라 · k-hop 확산</h3>
-          <span class="legend" style="font-size:10.5px;"><span class="aura-dot aura-dot-front"></span>방금 도달<span class="aura-dot aura-dot-settled"></span>정착됨</span>
+    <section class="graph-card" id="reachGraphCard">
+      <div class="graph-card-head">
+        <h2>도달 범위 색상 · Reachability</h2>
+        <div class="legend" id="reachLegend">
+          <span class="legend-swatch"></span><span>미도달</span><span class="legend-bar" id="reachLegendBar"></span><span>0 hop</span>
         </div>
-        <svg class="aura-svg" id="auraSvg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <filter id="auraBlur" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="8" />
-            </filter>
-          </defs>
-          <g id="auraEdgesLayer"></g>
-          <g id="auraGlowLayer"></g>
-          <g id="auraNodesLayer"></g>
-        </svg>
-        <p class="chart-readout" id="auraReadout"></p>
-        <p class="chart-hint">노드를 클릭하면 이 오라의 중심(시작 노드)이 바뀝니다.</p>
       </div>
 
-      <div class="chart-card">
-        <div class="graph-card-head" style="margin-bottom:2px;">
-          <h3 style="margin:0;">정보 다양성 유지율</h3>
-          <label class="log-toggle"><input type="checkbox" id="logScaleToggle"> 로그 스케일</label>
-        </div>
-        <svg class="chart" id="varChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
-        <p class="chart-readout" id="varReadout"></p>
-        <p class="chart-hint">그래프를 클릭하면 해당 k로 바로 이동합니다. 선형 스케일에서는 1% 이하가 거의 0처럼 보이는데, 로그 스케일로 보면 그 이후로도 계속 지수적으로 줄어드는 게 보여요.</p>
-      </div>
+      <svg id="reachGraphSvg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
+        <g id="reachEdgesLayer"></g>
+        <g id="reachNodesLayer"></g>
+      </svg>
 
-      <div class="chart-card">
-        <h3 style="margin:0 0 2px;">클러스터 내부 vs 클러스터 간 분산</h3>
-        <div class="legend" style="margin-bottom:4px;">
-          <span class="legend-swatch" style="background:var(--series-within);"></span><span>클러스터 내부</span>
-          <span class="legend-swatch" style="background:var(--series-between); margin-left:8px;"></span><span>클러스터 간</span>
-        </div>
-        <svg class="chart" id="decompChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
-        <p class="chart-readout" id="decompReadout"></p>
-        <p class="chart-hint">클러스터 <b>내부</b> 차이는 몇 hop 만에 빠르게 사라지지만, 클러스터 <b>간</b> 차이는 다리 엣지가 적어서 훨씬 천천히 사라집니다 — 결국 k→∞에서는 둘 다 0으로 수렴합니다.</p>
-      </div>
-
-      <div class="chart-card">
-        <h3>선택 노드 기준 도달 비율</h3>
-        <svg class="chart" id="reachChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
-        <p class="chart-readout" id="reachReadout"></p>
-        <p class="chart-hint" id="reachHint">그래프나 오라 패널의 노드를 클릭하면 시작 노드를 바꿀 수 있습니다.</p>
-      </div>
-
-      <details class="formula-details">
-        <summary>수식 보기</summary>
-        <div class="formula-body">
-          <p>모든 노드는 매 hop마다 자기 자신과 이웃의 값을 평균 내어 갱신합니다 (self-loop가 있는 평균 message passing):</p>
-          <span class="eq">h_v^(k+1) = ( h_v^(k) + Σ_{u∈N(v)} h_u^(k) ) / (1 + deg(v))</span>
-          <p>이 규칙을 k번 반복하면 h_v^(k)는 v로부터 <b class="mono">k-hop 이내</b>에 있는 모든 노드의 초기값에 의해서만 결정됩니다 — 이것이 "reach" 곡선입니다.</p>
-          <p>"정보 다양성"은 8차원 특징 벡터 전체의 <b>분산</b>입니다 (Fisher information이 아니라 단순 통계 분산):</p>
-          <span class="eq">Var(k) = (1/N) Σ_v ‖h_v^(k) − mean(H^(k))‖²</span>
-          <p>노드 벡터들이 평균에서 얼마나 퍼져 있는지를 재는 값으로, GNN 논문에서 over-smoothing을 정량화할 때 쓰는 Dirichlet energy(그래프 라플라시안 이차형식)와 사실상 같은 양입니다. 그래프에 self-loop가 없다면 Var(k)는 정확히 Dirichlet energy와 일치합니다. 화면에는 k=0 값 대비 백분율 <span class="mono">Var(k)/Var(0)×100%</span>로 표시해서, 100%(완전히 구별됨)에서 시작해 0%(전부 동일)로 줄어드는 정도를 직관적으로 보여줍니다.</p>
-          <p>이 갱신 규칙의 계수 행렬 P = D⁻¹(A+I)는 self-loop 덕분에 비주기적(aperiodic)인, 연결된 그래프 위의 확률 행렬(각 행의 합이 1)입니다. Perron-Frobenius 정리에 따라 P^k는 k→∞일 때 모든 행이 같은 극한 벡터(그래프 연결 구조로 가중된 정상분포)로 수렴하는 행렬로 수렴합니다 — 즉 <b>그래프가 하나로 연결되어 있는 한, 몇 개의 다리로만 이어져 있어도 결국 모든 노드의 값은 정확히 하나로 수렴합니다.</b> 클러스터 간 차이도 예외가 아니에요.</p>
-          <p>다만 수렴 <b>속도</b>는 모드마다 다릅니다. P의 고유값 중 1이 아닌 것들은 모두 절댓값이 1보다 작은데, 클러스터 내부처럼 조밀하게 연결된 구조에 대응하는 고유값은 1에서 멀어 빠르게 감쇠하고, "어느 클러스터에 속하는가" 같은 저주파 구조는 클러스터 사이를 잇는 다리가 적을수록(그래프 컷이 작을수록) 그 고유값이 1에 매우 가까워져 훨씬 느리게 감쇠합니다. 그래서 클러스터 내부 분산은 몇 hop 만에 사라지는데, 클러스터 간 분산은 수십~수백 hop이 지나야 눈에 띄게 사라지는 것처럼 보이는 겁니다 — "클러스터 내부 vs 클러스터 간 분산" 차트가 이 두 속도 차이를 직접 보여줍니다. 화면의 k 최대값(<span class="mono">180</span>)은 이 데모에서 등장하는 대부분의 랜덤 그래프가 두 곡선 모두 0.01% 이하로 떨어지는 지점까지 잡은 값입니다.</p>
-        </div>
-      </details>
-    </aside>
+      <p class="hover-info" id="reachHoverInfo">노드를 클릭하면 시작 노드가 바뀌고, 그로부터 몇 hop 만에 도달하는지 색으로 표시됩니다.</p>
+    </section>
   </main>
+
+  <section class="results-grid">
+    <div class="chart-card">
+      <div class="graph-card-head" style="margin-bottom:2px;">
+        <h3 style="margin:0;">노드 오라 · k-hop 확산</h3>
+        <span class="legend" style="font-size:10.5px;"><span class="aura-dot aura-dot-front"></span>방금 도달<span class="aura-dot aura-dot-settled"></span>정착됨</span>
+      </div>
+      <svg class="aura-svg" id="auraSvg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="auraBlur" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="8" />
+          </filter>
+        </defs>
+        <g id="auraEdgesLayer"></g>
+        <g id="auraGlowLayer"></g>
+        <g id="auraNodesLayer"></g>
+      </svg>
+      <p class="chart-readout" id="auraReadout"></p>
+      <p class="chart-hint">노드를 클릭하면 이 오라의 중심(시작 노드)이 바뀝니다.</p>
+    </div>
+
+    <div class="chart-card">
+      <div class="graph-card-head" style="margin-bottom:2px;">
+        <h3 style="margin:0;">정보 다양성 유지율</h3>
+        <label class="log-toggle"><input type="checkbox" id="logScaleToggle"> 로그 스케일</label>
+      </div>
+      <svg class="chart" id="varChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
+      <p class="chart-readout" id="varReadout"></p>
+      <p class="chart-hint">그래프를 클릭하면 해당 k로 바로 이동합니다. 선형 스케일에서는 1% 이하가 거의 0처럼 보이는데, 로그 스케일로 보면 그 이후로도 계속 지수적으로 줄어드는 게 보여요.</p>
+    </div>
+
+    <div class="chart-card">
+      <h3 style="margin:0 0 2px;">클러스터 내부 vs 클러스터 간 분산</h3>
+      <div class="legend" style="margin-bottom:4px;">
+        <span class="legend-swatch" style="background:var(--series-within);"></span><span>클러스터 내부</span>
+        <span class="legend-swatch" style="background:var(--series-between); margin-left:8px;"></span><span>클러스터 간</span>
+      </div>
+      <svg class="chart" id="decompChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
+      <p class="chart-readout" id="decompReadout"></p>
+      <p class="chart-hint">클러스터 <b>내부</b> 차이는 몇 hop 만에 빠르게 사라지지만, 클러스터 <b>간</b> 차이는 다리 엣지가 적어서 훨씬 천천히 사라집니다 — 결국 k→∞에서는 둘 다 0으로 수렴합니다.</p>
+    </div>
+
+    <div class="chart-card">
+      <h3>선택 노드 기준 도달 비율</h3>
+      <svg class="chart" id="reachChart" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg"></svg>
+      <p class="chart-readout" id="reachReadout"></p>
+      <p class="chart-hint" id="reachHint">위쪽 두 그래프나 오라 패널의 노드를 클릭하면 시작 노드를 바꿀 수 있습니다.</p>
+    </div>
+
+    <details class="formula-details">
+      <summary>수식 보기</summary>
+      <div class="formula-body">
+        <p>모든 노드는 매 hop마다 자기 자신과 이웃의 값을 평균 내어 갱신합니다 (self-loop가 있는 평균 message passing):</p>
+        <span class="eq">h_v^(k+1) = ( h_v^(k) + Σ_{u∈N(v)} h_u^(k) ) / (1 + deg(v))</span>
+        <p>이 규칙을 k번 반복하면 h_v^(k)는 v로부터 <b class="mono">k-hop 이내</b>에 있는 모든 노드의 초기값에 의해서만 결정됩니다 — 이것이 "reach" 곡선입니다.</p>
+        <p>"정보 다양성"은 8차원 특징 벡터 전체의 <b>분산</b>입니다 (Fisher information이 아니라 단순 통계 분산):</p>
+        <span class="eq">Var(k) = (1/N) Σ_v ‖h_v^(k) − mean(H^(k))‖²</span>
+        <p>노드 벡터들이 평균에서 얼마나 퍼져 있는지를 재는 값으로, GNN 논문에서 over-smoothing을 정량화할 때 쓰는 Dirichlet energy(그래프 라플라시안 이차형식)와 사실상 같은 양입니다. 그래프에 self-loop가 없다면 Var(k)는 정확히 Dirichlet energy와 일치합니다. 화면에는 k=0 값 대비 백분율 <span class="mono">Var(k)/Var(0)×100%</span>로 표시해서, 100%(완전히 구별됨)에서 시작해 0%(전부 동일)로 줄어드는 정도를 직관적으로 보여줍니다.</p>
+        <p>이 갱신 규칙의 계수 행렬 P = D⁻¹(A+I)는 self-loop 덕분에 비주기적(aperiodic)인, 연결된 그래프 위의 확률 행렬(각 행의 합이 1)입니다. Perron-Frobenius 정리에 따라 P^k는 k→∞일 때 모든 행이 같은 극한 벡터(그래프 연결 구조로 가중된 정상분포)로 수렴하는 행렬로 수렴합니다 — 즉 <b>그래프가 하나로 연결되어 있는 한, 몇 개의 다리로만 이어져 있어도 결국 모든 노드의 값은 정확히 하나로 수렴합니다.</b> 클러스터 간 차이도 예외가 아니에요.</p>
+        <p>다만 수렴 <b>속도</b>는 모드마다 다릅니다. P의 고유값 중 1이 아닌 것들은 모두 절댓값이 1보다 작은데, 클러스터 내부처럼 조밀하게 연결된 구조에 대응하는 고유값은 1에서 멀어 빠르게 감쇠하고, "어느 클러스터에 속하는가" 같은 저주파 구조는 클러스터 사이를 잇는 다리가 적을수록(그래프 컷이 작을수록) 그 고유값이 1에 매우 가까워져 훨씬 느리게 감쇠합니다. 그래서 클러스터 내부 분산은 몇 hop 만에 사라지는데, 클러스터 간 분산은 수십~수백 hop이 지나야 눈에 띄게 사라지는 것처럼 보이는 겁니다 — "클러스터 내부 vs 클러스터 간 분산" 차트가 이 두 속도 차이를 직접 보여줍니다. 화면의 k 최대값(<span class="mono">180</span>)은 이 데모에서 등장하는 대부분의 랜덤 그래프가 두 곡선 모두 0.01% 이하로 떨어지는 지점까지 잡은 값입니다.</p>
+      </div>
+    </details>
+  </section>
 
   <footer class="foot-note">
     노드 36개 · 3개 클러스터(각 12개) · 클러스터 간 다리 엣지 4개 · 노드 특징 벡터 차원 8 · 색상은 특징 벡터를 하나의 스칼라로 투영해 파란색 한 톤의 명도로만 표현합니다 (색상=값의 크기, 위치=클러스터 정체성). 초기(k=0) 값의 <b class="mono" style="color:var(--ink); font-weight:600;">10~90 백분위 구간</b>을 색상의 최소~최대로 삼아 대비를 강조했고, 이 구간을 벗어나는 극단값은 양 끝 색으로 고정됩니다 (정확한 값은 노드에 마우스를 올리면 확인 가능). "새 그래프로 실험"을 눌러 시드를 바꿔가며 같은 현상이 반복되는지 확인해 보세요.
@@ -821,7 +812,6 @@
 
   // ---------------- state ----------------
   let world = buildWorld(Date.now() % 2147483647);
-  let mode = 'oversmooth';
   let k = 0;
   let sourceNode = 0;
   let dist = world.bfsFrom(sourceNode);
@@ -851,11 +841,15 @@
   const edgesLayer = document.getElementById('edgesLayer');
   const nodesLayer = document.getElementById('nodesLayer');
   const graphCard = document.getElementById('graphCard');
-  const graphTitle = document.getElementById('graphTitle');
   const legendBar = document.getElementById('legendBar');
   const legend = document.getElementById('legend');
   const hoverInfo = document.getElementById('hoverInfo');
   const valueStrip = document.getElementById('valueStrip');
+  const reachEdgesLayer = document.getElementById('reachEdgesLayer');
+  const reachNodesLayer = document.getElementById('reachNodesLayer');
+  const reachGraphCard = document.getElementById('reachGraphCard');
+  const reachLegendBar = document.getElementById('reachLegendBar');
+  const reachHoverInfo = document.getElementById('reachHoverInfo');
   const kSlider = document.getElementById('kSlider');
   const kValue = document.getElementById('kValue');
   const playBtn = document.getElementById('playBtn');
@@ -878,7 +872,6 @@
 
   // ---------------- graph rendering ----------------
   let nodeEls = [];
-  let ringEl = null;
 
   function buildGraphDom(){
     edgesLayer.innerHTML = '';
@@ -906,8 +899,8 @@
       circle.setAttribute('stroke', 'var(--surface)');
       circle.setAttribute('stroke-width', '1.4');
       g.appendChild(circle);
-      g.addEventListener('mouseenter', () => showHover(i));
-      g.addEventListener('focus', () => showHover(i));
+      g.addEventListener('mouseenter', () => showHoverValue(i));
+      g.addEventListener('focus', () => showHoverValue(i));
       g.addEventListener('click', () => { selectSource(i); });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
@@ -915,11 +908,52 @@
       nodesLayer.appendChild(g);
       nodeEls.push({ g, circle, x: nd.x, y: nd.y });
     }
+  }
 
-    ringEl = document.createElementNS(svgNS, 'circle');
-    ringEl.setAttribute('r', 13);
-    ringEl.setAttribute('class', 'node-ring-source');
-    nodesLayer.appendChild(ringEl);
+  // ---------------- reach graph rendering (always-visible right panel) ----------------
+  let reachNodeEls = [];
+  let reachRingEl = null;
+
+  function buildReachGraphDom(){
+    reachEdgesLayer.innerHTML = '';
+    reachNodesLayer.innerHTML = '';
+    const svgNS = 'http://www.w3.org/2000/svg';
+
+    world.edges.forEach(e => {
+      const a = world.nodes[e.source], b = world.nodes[e.target];
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      line.setAttribute('class', 'edge-line' + (e.bridge ? ' bridge' : ''));
+      reachEdgesLayer.appendChild(line);
+    });
+
+    reachNodeEls = [];
+    for (let i=0;i<N;i++){
+      const nd = world.nodes[i];
+      const g = document.createElementNS(svgNS, 'g');
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', nd.x);
+      circle.setAttribute('cy', nd.y);
+      circle.setAttribute('r', 9);
+      circle.setAttribute('class', 'node-circle hoverable');
+      circle.setAttribute('stroke', 'var(--surface)');
+      circle.setAttribute('stroke-width', '1.4');
+      g.appendChild(circle);
+      g.addEventListener('mouseenter', () => showHoverReach(i));
+      g.addEventListener('focus', () => showHoverReach(i));
+      g.addEventListener('click', () => { selectSource(i); });
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', 'reach node ' + i);
+      reachNodesLayer.appendChild(g);
+      reachNodeEls.push({ g, circle, x: nd.x, y: nd.y });
+    }
+
+    reachRingEl = document.createElementNS(svgNS, 'circle');
+    reachRingEl.setAttribute('r', 13);
+    reachRingEl.setAttribute('class', 'node-ring-source');
+    reachNodesLayer.appendChild(reachRingEl);
   }
 
   // ---------------- aura panel (single-node k-hop diffusion) ----------------
@@ -949,7 +983,7 @@
       circle.setAttribute('r', 6);
       circle.setAttribute('class', 'aura-node');
       circle.addEventListener('click', () => { selectSource(i); });
-      circle.addEventListener('mouseenter', () => showHover(i));
+      circle.addEventListener('mouseenter', () => showHoverReach(i));
       auraNodesLayer.appendChild(circle);
       auraNodeEls.push(circle);
     }
@@ -1006,47 +1040,45 @@
       (k >= diameter ? ' k가 지름(' + diameter + ')을 넘어서면 오라가 그래프 전체를 옅게 덮은 채로 유지됩니다.' : '');
   }
 
-  function showHover(i){
+  function showHoverValue(i){
     const cname = CLUSTER_NAMES[world.clusterOf[i]];
-    if (mode === 'oversmooth'){
-      const v0 = world.scalarStates[0][i];
-      const vk = world.scalarStates[k][i];
-      hoverInfo.textContent = 'Node #' + i + ' · cluster ' + cname +
-        ' — 초기값 ' + v0.toFixed(2) + ' → k=' + k + ' 값 ' + vk.toFixed(2);
-    } else {
-      const d = dist[i];
-      hoverInfo.textContent = 'Node #' + i + ' · cluster ' + cname +
-        ' — 시작 노드로부터 ' + (isFinite(d) ? d + ' hop' : '연결 안 됨') +
-        (i === sourceNode ? ' (시작 노드)' : '');
-    }
+    const v0 = world.scalarStates[0][i];
+    const vk = world.scalarStates[k][i];
+    hoverInfo.textContent = 'Node #' + i + ' · cluster ' + cname +
+      ' — 초기값 ' + v0.toFixed(2) + ' → k=' + k + ' 값 ' + vk.toFixed(2);
+  }
+
+  function showHoverReach(i){
+    const cname = CLUSTER_NAMES[world.clusterOf[i]];
+    const d = dist[i];
+    reachHoverInfo.textContent = 'Node #' + i + ' · cluster ' + cname +
+      ' — 시작 노드로부터 ' + (isFinite(d) ? d + ' hop' : '연결 안 됨') +
+      (i === sourceNode ? ' (시작 노드)' : '');
   }
 
   function renderGraphColors(){
     for (let i=0;i<N;i++){
+      const v = world.scalarStates[k][i];
+      const t = clamp((v - world.domainMin) / (world.domainMax - world.domainMin), 0, 1);
+      nodeEls[i].circle.setAttribute('fill', seqColor(t));
+    }
+  }
+
+  function renderReachGraphColors(){
+    for (let i=0;i<N;i++){
+      const d = dist[i];
       let color;
-      if (mode === 'oversmooth'){
-        const v = world.scalarStates[k][i];
-        const t = clamp((v - world.domainMin) / (world.domainMax - world.domainMin), 0, 1);
-        color = seqColor(t);
+      if (!isFinite(d) || d > k){
+        color = 'var(--unreached)';
       } else {
-        const d = dist[i];
-        if (!isFinite(d) || d > k){
-          color = 'var(--unreached)';
-        } else {
-          const t = diameter > 0 ? 1 - (d / diameter) : 1;
-          color = seqColor(clamp(t, 0.12, 1));
-        }
+        const t = diameter > 0 ? 1 - (d / diameter) : 1;
+        color = seqColor(clamp(t, 0.12, 1));
       }
-      nodeEls[i].circle.setAttribute('fill', color);
+      reachNodeEls[i].circle.setAttribute('fill', color);
     }
-    const src = nodeEls[sourceNode];
-    if (mode === 'reach'){
-      ringEl.setAttribute('cx', src.x);
-      ringEl.setAttribute('cy', src.y);
-      ringEl.style.display = '';
-    } else {
-      ringEl.style.display = 'none';
-    }
+    const src = reachNodeEls[sourceNode];
+    reachRingEl.setAttribute('cx', src.x);
+    reachRingEl.setAttribute('cy', src.y);
   }
 
   function renderValueStrip(){
@@ -1072,12 +1104,7 @@
 
   function renderLegend(){
     legendBar.style.background = rampCss();
-    if (mode === 'oversmooth'){
-      legend.innerHTML = '<span>값 낮음</span><span class="legend-bar" id="legendBar"></span><span>값 높음</span>';
-    } else {
-      legend.innerHTML = '<span class="legend-swatch"></span><span>미도달</span><span class="legend-bar" id="legendBar"></span><span>0 hop</span>';
-    }
-    document.getElementById('legendBar').style.background = rampCss();
+    reachLegendBar.style.background = rampCss();
   }
 
   // ---------------- charts ----------------
@@ -1286,20 +1313,18 @@
     const reachedCount = dist.filter(d => d <= k).length;
     const reachPct = reachFrac[k];
 
-    if (mode === 'oversmooth'){
-      let note;
-      if (k === 0) note = '아직 이웃 정보를 섞지 않은 초기 상태 — 3개 클러스터의 값이 뚜렷이 구분됩니다.';
-      else if (varPct > 55) note = '클러스터별 값 차이가 아직 꽤 남아 있습니다.';
-      else if (varPct > 20) note = '클러스터 간 정보가 섞이면서 값의 차이가 눈에 띄게 줄고 있습니다.';
-      else if (varPct > 0.05) note = '대부분의 노드가 거의 같은 값으로 수렴했습니다 — over-smoothing이 심하게 진행된 상태입니다.';
-      else note = '사실상 완전히 하나의 값으로 수렴했습니다 (k→∞ 극한에 가까운 상태).';
-      callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 정보 다양성 <span class="k-tag mono">' + formatPct(varPct) + '%</span> 남음. ' + note;
-    } else {
-      let note;
-      if (k >= diameter) note = '이미 k=' + diameter + '에서 그래프 전체에 정보가 도달했습니다. 이후로는 새 정보 없이 계속 평균만 반복됩니다.';
-      else note = '아직 도달하지 못한 노드가 있어, 전부 도달하려면 ' + (diameter - k) + " hop 더 필요합니다 (지름 = " + diameter + ").";
-      callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 선택 노드 기준 <span class="k-tag mono">' + reachedCount + '/' + N + '</span> (' + reachPct.toFixed(0) + '%) 노드에 도달. ' + note;
-    }
+    let smoothNote;
+    if (k === 0) smoothNote = '아직 이웃 정보를 섞지 않은 초기 상태 — 3개 클러스터의 값이 뚜렷이 구분됩니다.';
+    else if (varPct > 55) smoothNote = '클러스터별 값 차이가 아직 꽤 남아 있습니다.';
+    else if (varPct > 20) smoothNote = '클러스터 간 정보가 섞이면서 값의 차이가 눈에 띄게 줄고 있습니다.';
+    else if (varPct > 0.05) smoothNote = '대부분의 노드가 거의 같은 값으로 수렴했습니다 — over-smoothing이 심하게 진행된 상태입니다.';
+    else smoothNote = '사실상 완전히 하나의 값으로 수렴했습니다 (k→∞ 극한에 가까운 상태).';
+
+    let reachNote;
+    if (k >= diameter) reachNote = '선택 노드 기준으로는 이미 그래프 전체에 도달했습니다.';
+    else reachNote = '선택 노드 기준 전부 도달하려면 ' + (diameter - k) + ' hop 더 필요합니다 (지름 = ' + diameter + ').';
+
+    callout.innerHTML = '<span class="k-tag mono">k=' + k + '</span> · 정보 다양성 <span class="k-tag mono">' + formatPct(varPct) + '%</span> 남음, 도달 <span class="k-tag mono">' + reachedCount + '/' + N + '</span> (' + reachPct.toFixed(0) + '%). ' + smoothNote + ' ' + reachNote;
 
     varReadout.innerHTML = 'k=<span class="mono">' + k + '</span> → 다양성 <span class="mono">' + formatPct(varPct) + '%</span> 남음' +
       (k===0 ? ' (기준점, 100%)' : '') + '. k=' + K_MAX + '에서는 <span class="mono">' + formatPct(world.varianceRel[K_MAX]) + '%</span>까지 떨어집니다.';
@@ -1312,10 +1337,9 @@
   function renderAll(){
     kValue.textContent = String(k);
     kSlider.value = String(k);
-    graphCard.className = 'graph-card' + (mode === 'reach' ? ' mode-reach' : '');
-    graphTitle.textContent = mode === 'oversmooth' ? '특징값 색상 (over-smoothing)' : '도달 범위 색상 (reachability)';
     renderLegend();
     renderGraphColors();
+    renderReachGraphColors();
     renderValueStrip();
     renderAura();
     updateChartMarker(varChart, k);
@@ -1325,15 +1349,6 @@
   }
 
   // ---------------- controls ----------------
-  document.querySelectorAll('.mode-toggle button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.mode-toggle button').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
-      btn.classList.add('active'); btn.setAttribute('aria-selected','true');
-      mode = btn.getAttribute('data-mode');
-      renderAll();
-    });
-  });
-
   kSlider.addEventListener('input', () => {
     k = parseInt(kSlider.value, 10);
     stopPlay();
@@ -1367,6 +1382,7 @@
     sourceNode = 0;
     recomputeReach();
     buildGraphDom();
+    buildReachGraphDom();
     buildAuraDom();
     rebuildCharts();
     renderAll();
@@ -1392,6 +1408,7 @@
 
   // ---------------- boot ----------------
   buildGraphDom();
+  buildReachGraphDom();
   buildAuraDom();
   rebuildCharts();
   renderAll();
